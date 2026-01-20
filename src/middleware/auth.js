@@ -4,12 +4,9 @@ const POSSIBLE_KEYS = ['API_KEY', 'APIKEY', 'VERCEL_API_KEY', 'NEXT_PUBLIC_API_K
 const serverKey = POSSIBLE_KEYS.map(k => process.env[k]).find(v => v && v.length > 0);
 
 module.exports = function (req, res, next) {
-  // Si no hay clave configurada en el entorno, no provocar 500 en producción.
-  // En su lugar, permitir la petición y emitir una advertencia para que el deploy
-  // sea corregido (más seguro: definir `API_KEY` en Vercel).
+  // En producción y en general, requerimos que la clave del servidor esté configurada.
   if (!serverKey) {
-    console.warn('auth: ninguna API key del servidor configurada. Requests serán permitidos hasta configurar API_KEY.');
-    return next();
+    return res.status(500).json({ message: 'Server misconfigured: API_KEY no está definida en el entorno' });
   }
 
   const apiKeyHeader = req.headers['x-api-key'] || req.headers['authorization'];
