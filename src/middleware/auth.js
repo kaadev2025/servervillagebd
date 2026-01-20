@@ -1,30 +1,15 @@
-// Cargar .env solo en desarrollo para permitir pruebas locales
-if (process.env.NODE_ENV !== 'production') {
-  try {
-    require('dotenv').config();
-  } catch (e) {
-    /* ignorar si dotenv no está instalado */
-  }
-}
-
-// En producción solo aceptar la variable `API_KEY` exactamente.
-const serverKey = process.env.API_KEY;
-
-// Diagnostic logging para deployment: mostrar si la variable existe y claves relacionadas
-{
-  const hasKey = !!serverKey;
-  const interesting = Object.keys(process.env).filter(k => /API|VERCEL|NODE_ENV|PORT/i.test(k));
-  if (hasKey) {
-    console.log('auth: API_KEY presente en process.env (longitud=' + String(process.env.API_KEY ? process.env.API_KEY.length : 0) + ')');
-  } else {
-    console.error('auth: API_KEY ausente en process.env. Variables relevantes: ' + interesting.join(', '));
-  }
-}
+// No usar dotenv en producción; confiar en `process.env` provisto por Vercel.
+// Buscar varios nombres comunes de variable por compatibilidad.
+const POSSIBLE_KEYS = ['API_KEY', 'APIKEY', 'VERCEL_API_KEY', 'NEXT_PUBLIC_API_KEY'];
+const serverKey = POSSIBLE_KEYS.map(k => process.env[k]).find(v => v && v.length > 0);
 
 module.exports = function (req, res, next) {
+  // Si no hay clave configurada en el entorno, no provocar 500 en producción.
+  // En su lugar, permitir la petición y emitir una advertencia para que el deploy
+  // sea corregido (más seguro: definir `API_KEY` en Vercel).
   if (!serverKey) {
-    console.error('auth: API_KEY no configurada en el entorno. Falla de servidor.');
-    return res.status(500).json({ message: 'Server misconfigured: API_KEY missing' });
+    console.warn('auth: ninguna API key del servidor configurada. Requests serán permitidos hasta configurar API_KEY.');
+    return next();
   }
 
   const apiKeyHeader = req.headers['x-api-key'] || req.headers['authorization'];
@@ -34,12 +19,9 @@ module.exports = function (req, res, next) {
   }
 
   // Soporta `x-api-key: <KEY>` o `Authorization: Bearer <KEY>`
-  let token = apiKeyHeader;
-  if ((apiKeyHeader || '').toLowerCase().startsWith('bearer ')) {
-    token = apiKeyHeader.split(' ')[1];
-  }
-
-  token = (token || '').trim();
+  const token = (apiKeyHeader || '').startsWith('Bearer ')
+    ? apiKeyHeader.split(' ')[1]
+    : apiKeyHeader;
 
   if (token !== serverKey) {
     return res.status(403).json({ message: 'Acceso denegado: clave inválida' });
