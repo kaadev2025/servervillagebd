@@ -10,6 +10,17 @@ if (process.env.NODE_ENV !== 'production') {
 // En producción solo aceptar la variable `API_KEY` exactamente.
 const serverKey = process.env.API_KEY;
 
+// Diagnostic logging para deployment: mostrar si la variable existe y claves relacionadas
+{
+  const hasKey = !!serverKey;
+  const interesting = Object.keys(process.env).filter(k => /API|VERCEL|NODE_ENV|PORT/i.test(k));
+  if (hasKey) {
+    console.log('auth: API_KEY presente en process.env (longitud=' + String(process.env.API_KEY ? process.env.API_KEY.length : 0) + ')');
+  } else {
+    console.error('auth: API_KEY ausente en process.env. Variables relevantes: ' + interesting.join(', '));
+  }
+}
+
 module.exports = function (req, res, next) {
   if (!serverKey) {
     console.error('auth: API_KEY no configurada en el entorno. Falla de servidor.');
